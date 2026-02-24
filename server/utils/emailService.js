@@ -1,32 +1,40 @@
-import { TransactionalEmailsApi, TransactionalEmailsApiApiKeys } from '@getbrevo/brevo';
+import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const apiInstance = new TransactionalEmailsApi();
-apiInstance.setApiKey(TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
-
 const HR_INBOX = process.env.HR_EMAIL || 'hr@visionai.jp';
-const SENDER_EMAIL = process.env.SENDER_EMAIL || 'hr@visionai.jp';
+const SENDER_EMAIL = process.env.BREVO_EMAIL || 'hr@visionai.jp';
 const SENDER_NAME = process.env.SENDER_NAME || 'VisionAI';
+
+// Create Brevo SMTP transporter via nodemailer
+const transporter = nodemailer.createTransport({
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.BREVO_EMAIL,
+    pass: process.env.BREVO_API_KEY,
+  },
+});
 
 // Generic send mail function
 async function sendMail({ to, subject, htmlContent, attachments }) {
-  const sendSmtpEmail = {
-    sender: { email: SENDER_EMAIL, name: SENDER_NAME },
-    to: [{ email: to }],
+  const mailOptions = {
+    from: `"${SENDER_NAME}" <${SENDER_EMAIL}>`,
+    to,
     subject,
-    htmlContent,
+    html: htmlContent,
   };
 
   if (attachments) {
-    sendSmtpEmail.attachment = attachments;
+    mailOptions.attachments = attachments;
   }
 
   try {
-    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
-    console.log(`✅ Email sent successfully to ${to}:`, data.body);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent successfully to ${to}:`, info.messageId);
   } catch (error) {
-    console.error(`❌ Brevo email sending failed for ${to}:`, error.response?.text || error);
+    console.error(`❌ Email sending failed for ${to}:`, error.message);
   }
 }
 
@@ -75,19 +83,21 @@ export const sendJobApplicationEmail = async ({ name, email, phone, position, me
       <p><strong>Message:</strong></p>
       <p>${message || 'Not provided'}</p>
     `;
-    
-  const attachments = [
-    {
-      content: resume.buffer.toString('base64'),
-      name: resume.originalname,
-    },
-  ];
+
+  const attachments = resume
+    ? [
+        {
+          filename: resume.originalname,
+          content: resume.buffer,
+        },
+      ]
+    : undefined;
 
   const sendToHr = sendMail({
     to: HR_INBOX,
     subject: `Job Application: ${position}`,
     htmlContent: hrHtmlContent,
-    attachments: attachments,
+    attachments,
   });
 
   // Confirmation email to applicant
@@ -126,7 +136,7 @@ export const sendOTPEmail = async (email, otp) => {
       <p>This code will expire in 10 minutes.</p>
       <p>If you didn't request this code, please ignore this email.</p>
     `;
-  
+
   await sendMail({
     to: email,
     subject: 'VisionAI Admin - 2FA Verification Code',
