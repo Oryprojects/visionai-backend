@@ -1,39 +1,39 @@
 name: Backend CI/CD
 
 on:
-push:
-branches:
-- main
+  push:
+    branches:
+      - main
 
 jobs:
-build-and-deploy:
-runs-on: self-hosted
+  build-and-deploy:
+    runs-on: self-hosted
 
-steps:
-  - name: Checkout latest code
-    uses: actions/checkout@v3
-    with:
-      fetch-depth: 0
-      clean: true
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          clean: true
 
-  - name: Force update repo
-    run: |
-      git fetch origin
-      git reset --hard origin/main
-      git clean -fd
+      - name: Force update repo
+        run: |
+          git fetch origin
+          git reset --hard origin/main
+          git clean -fd
 
-  - name: Login to DockerHub
-    run: |
-      echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+      - name: Login to DockerHub
+        run: |
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
 
-  - name: Build Docker image
-    run: |
-      docker build --no-cache -t oryprojectsdocker/visionai-backend:latest .
+      - name: Build Docker image
+        run: |
+          docker build --no-cache -t oryprojectsdocker/visionai-backend:latest .
 
-  - name: Push Docker image
-    run: |
-      docker push oryprojectsdocker/visionai-backend:latest
+      - name: Push Docker image
+        run: |
+          docker push oryprojectsdocker/visionai-backend:latest
 
-  - name: Restart Backend Deployment
-    run: |
-      kubectl rollout restart deployment visionai-backend
+      - name: Restart Backend Deployment
+        run: |
+          kubectl rollout restart deployment visionai-backend
